@@ -1,0 +1,168 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>QR Studio</title>
+  <link rel="stylesheet" href="/static/styles.css" />
+</head>
+<body>
+  <main class="shell">
+    <section class="hero">
+      <div class="badge">QR Studio</div>
+      <h1>Convierte cualquier URL en un QR elegante.</h1>
+      <p>Genera, personaliza, previsualiza y descarga códigos QR sin salir del navegador.</p>
+    </section>
+
+    <section class="panel">
+      <form id="qr-form" class="form">
+        <label>
+          <span>URL</span>
+          <input id="url" type="url" placeholder="https://ejemplo.com" required value="https://example.com" />
+        </label>
+
+        <div class="grid two">
+          <label>
+            <span>Formato</span>
+            <select id="format">
+              <option value="png">PNG</option>
+              <option value="svg">SVG</option>
+            </select>
+          </label>
+          <label>
+            <span>Corrección</span>
+            <select id="error">
+              <option value="L">L · baja</option>
+              <option value="M" selected>M · media</option>
+              <option value="Q">Q · alta</option>
+              <option value="H">H · máxima</option>
+            </select>
+          </label>
+        </div>
+
+        <div class="grid two">
+          <label>
+            <span>Tamaño de módulo <b id="box-value">10</b></span>
+            <input id="box_size" type="range" min="2" max="24" value="10" />
+          </label>
+          <label>
+            <span>Margen <b id="border-value">4</b></span>
+            <input id="border" type="range" min="0" max="12" value="4" />
+          </label>
+        </div>
+
+        <div class="grid two colors">
+          <label>
+            <span>Color QR</span>
+            <input id="foreground" type="color" value="#111827" />
+          </label>
+          <label id="background-label">
+            <span>Fondo</span>
+            <input id="background" type="color" value="#ffffff" />
+          </label>
+        </div>
+
+        <label class="toggle-row">
+          <span class="toggle-copy">
+            <strong>Fondo transparente</strong>
+            <small>Conserva solo los módulos del QR en PNG y SVG.</small>
+          </span>
+          <input id="transparent" type="checkbox" />
+        </label>
+
+        <div class="actions">
+          <button type="submit">Generar QR</button>
+          <button type="button" id="download" class="secondary">Descargar</button>
+        </div>
+        <p id="message" class="message"></p>
+      </form>
+
+      <div class="preview-card">
+        <div class="preview-head">
+          <span>Vista previa</span>
+          <small>Se actualiza al generar</small>
+        </div>
+        <div class="preview" id="preview-wrap">
+          <img id="preview" alt="Código QR generado" />
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <script>
+    const form = document.getElementById('qr-form');
+    const preview = document.getElementById('preview');
+    const download = document.getElementById('download');
+    const message = document.getElementById('message');
+    const box = document.getElementById('box_size');
+    const border = document.getElementById('border');
+    const format = document.getElementById('format');
+    const transparent = document.getElementById('transparent');
+    const background = document.getElementById('background');
+    const backgroundLabel = document.getElementById('background-label');
+
+    box.addEventListener('input', () => document.getElementById('box-value').textContent = box.value);
+    border.addEventListener('input', () => document.getElementById('border-value').textContent = border.value);
+
+    function syncTransparency() {
+      background.disabled = transparent.checked;
+      backgroundLabel.classList.toggle('disabled', transparent.checked);
+      document.getElementById('preview-wrap').classList.toggle('checkerboard', transparent.checked);
+    }
+
+    transparent.addEventListener('change', () => {
+      syncTransparency();
+      generate();
+    });
+
+    function endpoint() {
+      const params = new URLSearchParams({
+        url: document.getElementById('url').value,
+        format: format.value,
+        box_size: box.value,
+        border: border.value,
+        error: document.getElementById('error').value,
+        foreground: document.getElementById('foreground').value,
+        background: background.value,
+        transparent: transparent.checked ? 'true' : 'false',
+      });
+      return `/api/qr?${params.toString()}`;
+    }
+
+    async function generate() {
+      message.textContent = 'Generando…';
+      try {
+        const response = await fetch(endpoint());
+        if (!response.ok) {
+          const data = await response.json();
+          throw new Error(data.detail || 'No se pudo generar el QR');
+        }
+        const blob = await response.blob();
+        preview.src = URL.createObjectURL(blob);
+        message.textContent = 'QR generado correctamente.';
+      } catch (err) {
+        message.textContent = err.message;
+      }
+    }
+
+    form.addEventListener('submit', (event) => {
+      event.preventDefault();
+      generate();
+    });
+
+    download.addEventListener('click', async () => {
+      const response = await fetch(endpoint());
+      if (!response.ok) return generate();
+      const blob = await response.blob();
+      const a = document.createElement('a');
+      a.href = URL.createObjectURL(blob);
+      a.download = `qr.${format.value}`;
+      a.click();
+      URL.revokeObjectURL(a.href);
+    });
+
+    syncTransparency();
+    generate();
+  </script>
+</body>
+</html>
